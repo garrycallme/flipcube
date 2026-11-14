@@ -138,7 +138,7 @@ export class CubeSceneManager {
   private isSoftwareGl: boolean;
 
   private textures: ProceduralTextureSet;
-  private envTexture: THREE.Texture;
+  private envTexture: THREE.Texture | null = null;
 
   private worldRoot = new THREE.Group();
   private tilesGroup = new THREE.Group();
@@ -183,7 +183,8 @@ export class CubeSceneManager {
   private disposables: Array<{ dispose: () => void }> = [];
   private frameId = 0;
   private disposed = false;
-  private resizeObserver: ResizeObserver;
+  private resizeObserver: ResizeObserver | null = null;
+  private handleWindowResize: (() => void) | null = null;
   private handleCanvasLost: (e: Event) => void;
   private handleCanvasRestored: () => void;
 
@@ -239,10 +240,16 @@ export class CubeSceneManager {
     this.scene.background = new THREE.Color('#090d1a');
     this.scene.fog = new THREE.FogExp2('#090d1a', 0.024);
 
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environment = this.envTexture;
-    pmrem.dispose();
+    let pmrem: THREE.PMREMGenerator | null = null;
+    try {
+      pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      this.scene.environment = this.envTexture;
+    } catch {
+      this.envTexture = null;
+    } finally {
+      pmrem?.dispose();
+    }
 
     const width = Math.max(1, container.clientWidth);
     const height = Math.max(1, container.clientHeight);
@@ -406,11 +413,20 @@ export class CubeSceneManager {
     this.scene.add(this.worldRoot);
 
     if (!this.isSoftwareGl) {
-      this.renderer.compile(this.scene, this.camera);
+      try {
+        this.renderer.compile(this.scene, this.camera);
+      } catch {
+        // Proceed cleanly if pre-compile is unsupported by driver
+      }
     }
 
-    this.resizeObserver = new ResizeObserver(() => this.handleResize());
-    this.resizeObserver.observe(this.container);
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.handleResize());
+      this.resizeObserver.observe(this.container);
+    } else {
+      this.handleWindowResize = () => this.handleResize();
+      window.addEventListener('resize', this.handleWindowResize);
+    }
 
     this.handleCanvasLost = (e: Event) => {
       e.preventDefault();
@@ -1631,13 +1647,16 @@ export class CubeSceneManager {
     this.disposed = true;
     cancelAnimationFrame(this.frameId);
     window.clearTimeout(this.frameId);
-    this.resizeObserver.disconnect();
+    this.resizeObserver?.disconnect();
+    if (this.handleWindowResize) {
+      window.removeEventListener('resize', this.handleWindowResize);
+    }
     this.renderer.domElement.removeEventListener('webglcontextlost', this.handleCanvasLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this.handleCanvasRestored);
 
     this.clearLevelMeshes();
     this.textures.dispose();
-    this.envTexture.dispose();
+    this.envTexture?.dispose();
 
     for (const d of this.disposables) {
       d.dispose();

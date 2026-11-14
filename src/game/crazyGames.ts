@@ -38,12 +38,40 @@ class CrazyGamesBridge {
     return this.initialized;
   }
 
+  private waitForSdkScript(): Promise<CrazyGamesSDK | undefined> {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return Promise.resolve(undefined);
+    }
+    if (window.CrazyGames?.SDK) {
+      return Promise.resolve(window.CrazyGames.SDK);
+    }
+    const script = document.getElementById('crazygames-sdk-script') as HTMLScriptElement | null;
+    if (!script) {
+      return Promise.resolve(undefined);
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        script.removeEventListener('load', finish);
+        script.removeEventListener('error', finish);
+        window.clearTimeout(timer);
+        resolve(window.CrazyGames?.SDK);
+      };
+      const timer = window.setTimeout(finish, 1500);
+      script.addEventListener('load', finish);
+      script.addEventListener('error', finish);
+    });
+  }
+
   public async init(): Promise<boolean> {
     if (this.initialized) return true;
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
-      const sdk = typeof window !== 'undefined' ? window.CrazyGames?.SDK : undefined;
+      const sdk = await this.waitForSdkScript();
       if (!sdk || sdk.environment === 'disabled') {
         return false;
       }

@@ -46,6 +46,7 @@ export default function App() {
   const [activeHint, setActiveHint] = useState<PlayerAction | null>(null);
   const [hintDisabled, setHintDisabled] = useState<boolean>(false);
   const [contextLost, setContextLost] = useState<boolean>(false);
+  const [webglError, setWebglError] = useState<string | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState<boolean>(false);
 
   // Refs for synchronous access inside event listeners & animation callbacks
@@ -104,21 +105,33 @@ export default function App() {
     }
   }, [screen]);
 
-  // Mount isolated Three.js canvas once
+  // Mount isolated Three.js canvas once with safe WebGL error handling
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    const manager = new CubeSceneManager(container, {
-      onLand: () => soundEngine.playLand(),
-      onContextLost: (lost) => setContextLost(lost),
-    });
-    sceneRef.current = manager;
-    manager.setMenuShowcase(true);
-    manager.loadLevel(levelRef.current, stateRef.current);
+    let manager: CubeSceneManager | null = null;
+    try {
+      manager = new CubeSceneManager(container, {
+        onLand: () => soundEngine.playLand(),
+        onContextLost: (lost) => setContextLost(lost),
+      });
+      sceneRef.current = manager;
+      manager.setMenuShowcase(true);
+      manager.loadLevel(levelRef.current, stateRef.current);
+      setWebglError(null);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'WebGL 3D context could not be initialized in this browser.';
+      setWebglError(msg);
+      manager?.dispose();
+      sceneRef.current = null;
+    }
 
     return () => {
-      manager.dispose();
+      manager?.dispose();
       sceneRef.current = null;
       crazyGames.gameplayStop();
     };
@@ -475,20 +488,27 @@ export default function App() {
       {/* Isolated WebGL Viewport Container */}
       <div ref={mountRef} className="absolute inset-0 w-full h-full" />
 
-      {/* WebGL Context Lost Fallback */}
-      {contextLost && (
+      {/* WebGL Context Lost or Initialization Failure Diagnostic Fallback */}
+      {(contextLost || webglError) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#090d1a]/95 p-6 text-center">
-          <div className="max-w-sm bg-[#0d1428] border border-white/15 rounded-2xl p-6">
+          <div className="max-w-md bg-[#0d1428] border border-white/15 rounded-2xl p-6 shadow-2xl">
             <h2 className="font-display font-bold text-xl text-white">
-              3D Context Paused
+              {webglError ? '3D Graphics Unavailable' : '3D Context Paused'}
             </h2>
             <p className="text-sm text-slate-300 mt-2">
-              Graphics context was interrupted. Reload or tap below to restore the view.
+              {webglError
+                ? 'CUBE FLIP requires WebGL to render the 3D puzzle board. Enable hardware acceleration or WebGL in your browser settings and reload.'
+                : 'Graphics context was interrupted. Reload or tap below to restore the view.'}
             </p>
+            {webglError && (
+              <p className="mt-3 rounded-lg bg-slate-900/90 px-3 py-2 text-xs font-mono-num text-rose-300 break-words">
+                {webglError}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-4 min-h-[44px] px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-semibold text-sm cursor-pointer"
+              className="mt-4 min-h-[44px] px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold text-sm cursor-pointer"
             >
               Reload Game
             </button>

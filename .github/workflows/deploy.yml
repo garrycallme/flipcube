@@ -43,7 +43,7 @@ jobs:
 
       - name: Build production bundle
         env:
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
+          VITE_BASE_PATH: /flipcube/
         run: npm run build
 
       - name: Upload Pages artifact
