@@ -44,25 +44,25 @@ class CrazyGamesBridge {
 
     this.initPromise = (async () => {
       const sdk = typeof window !== 'undefined' ? window.CrazyGames?.SDK : undefined;
-      if (!sdk) {
+      if (!sdk || sdk.environment === 'disabled') {
         return false;
       }
 
       try {
+        await sdk.init();
+        if (sdk.environment === 'disabled') {
+          this.initialized = false;
+          return false;
+        }
+
+        this.initialized = true;
         if (!this.loadingStarted) {
           this.loadingStarted = true;
           sdk.game?.loadingStart?.();
+          sdk.game?.loadingStop?.();
         }
-        await sdk.init();
-        this.initialized = true;
-        sdk.game?.loadingStop?.();
         return true;
       } catch {
-        try {
-          sdk.game?.loadingStop?.();
-        } catch {
-          // Ignore secondary cleanup error
-        }
         this.initialized = false;
         return false;
       }
