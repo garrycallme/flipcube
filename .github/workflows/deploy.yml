@@ -44,7 +44,14 @@ jobs:
       - name: Build production bundle
         env:
           VITE_BASE_PATH: /flipcube/
-        run: npm run build
+        run: |
+          rm -rf dist
+          npm run build
+
+      - name: Validate production HTML and assets
+        run: |
+          npm run validate:dist
+          ls -la dist dist/assets
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
