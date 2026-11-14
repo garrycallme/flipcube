@@ -1,0 +1,8 @@
+{
+  "name": "CUBE FLIP",
+  "description": "3D isometric rolling puzzle arcade game across 25 handcrafted levels and 5 worlds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
